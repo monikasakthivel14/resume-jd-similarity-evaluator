@@ -1,0 +1,3 @@
+Alex Smith - Software Engineer
+Skills: Python, algorithms, data structures, git, backend development, software engineering, text processing.
+Experience: 3 years building automated data analysis pipelines and scalable Python applications.
