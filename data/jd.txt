@@ -1,0 +1,9 @@
+Job Title: Python Software Engineer
+Key Responsibilities:
+- Develop scalable backend services using Python.
+- Collaborate with cross-functional teams to design algorithm-driven features.
+- Conduct data analysis and build automated pipelines.
+
+Requirements:
+- Strong knowledge of Python, algorithms, data structures, and Git.
+- Experience with text processing, data analysis, and software development.
