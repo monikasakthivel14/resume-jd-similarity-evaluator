@@ -21,7 +21,6 @@ An efficient, lightweight, and fully offline resume screening tool designed to r
 offline-resume-matcher/
 │
 ├── .gitignore
-├── LICENSE
 ├── README.md
 ├── data/
 │   ├── jd.txt
@@ -29,4 +28,4 @@ offline-resume-matcher/
 │       ├── alex_developer.txt
 │       └── sam_designer.txt
 └── src/
-    └── matcher.py
+    └── main_python_file.py
