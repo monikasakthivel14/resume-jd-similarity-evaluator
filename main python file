@@ -1,0 +1,106 @@
+import os
+import re
+import csv
+import math
+import string
+import argparse
+from collections import Counter
+from pathlib import Path
+STOPWORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", 
+    "aren't", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", 
+    "but", "by", "can", "cannot", "could", "did", "do", "does", "doing", "down", "during", "each", 
+    "few", "for", "from", "further", "had", "has", "have", "having", "he", "her", "here", "hers", 
+    "herself", "him", "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", 
+    "me", "more", "most", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", 
+    "or", "other", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should", "so", 
+    "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves", "then", "there", 
+    "these", "they", "this", "those", "through", "to", "too", "under", "until", "up", "very", 
+    "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "with", 
+    "would", "you", "your", "yours", "yourself", "yourselves"
+}
+def clean_and_tokenize(text: str) -> list[str]:
+    """Cleans text, removes punctuation/stopwords, and extracts unigrams and bigrams."""
+    text = text.lower()
+    text = re.sub(rf"[{re.escape(string.punctuation)}]", " ", text)
+    tokens = [word for word in text.split() if word not in STOPWORDS and not word.isdigit() and len(word) > 1]
+    bigrams = [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
+    return tokens + bigrams
+def calculate_cosine_similarity(tokens1: list[str], tokens2: list[str]) -> float:
+    """Calculates Cosine Similarity between two lists of tokens using Term Frequency."""
+    freq1 = Counter(tokens1)
+    freq2 = Counter(tokens2)
+    vocabulary = set(freq1.keys()).union(set(freq2.keys()))
+    dot_product = sum(freq1[word] * freq2[word] for word in vocabulary)
+    magnitude1 = math.sqrt(sum(val ** 2 for val in freq1.values()))
+    magnitude2 = math.sqrt(sum(val ** 2 for val in freq2.values()))
+    if not magnitude1 or not magnitude2:
+        return 0.0
+    return (dot_product / (magnitude1 * magnitude2)) * 100
+def calculate_jaccard_similarity(tokens1: list[str], tokens2: list[str]) -> float:
+    """Calculates Jaccard Index based on unique word overlap."""
+    set1, set2 = set(tokens1), set(tokens2)
+    intersection = set1.intersection(set2)
+    union = set1.union(set2)
+    if not union:
+        return 0.0
+    return (len(intersection) / len(union)) * 100
+def analyze_keywords(resume_tokens: list[str], jd_tokens: list[str]) -> tuple[list[str], list[str]]:
+    """Identifies matching skills and missing JD skills."""
+    jd_unigrams = {t for t in jd_tokens if " " not in t}
+    resume_unigrams = {t for t in resume_tokens if " " not in t}
+    matched = sorted(list(jd_unigrams.intersection(resume_unigrams)))
+    missing = sorted(list(jd_unigrams.difference(resume_unigrams)))
+    return matched, missing
+def evaluate_resumes(jd_path: str, resumes_dir: str) -> list[dict]:
+    with open(jd_path, "r", encoding="utf-8", errors="ignore") as f:
+        jd_text = f.read()
+    jd_tokens = clean_and_tokenize(jd_text)
+    results = []
+    resumes_folder = Path(resumes_dir)
+    for file_path in resumes_folder.glob("*.txt"):
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            resume_text = f.read()
+        resume_tokens = clean_and_tokenize(resume_text)
+        cosine_score = calculate_cosine_similarity(resume_tokens, jd_tokens)
+        jaccard_score = calculate_jaccard_similarity(resume_tokens, jd_tokens)
+        composite_score = round((0.7 * cosine_score) + (0.3 * jaccard_score), 2)
+        matched_kw, missing_kw = analyze_keywords(resume_tokens, jd_tokens)
+        results.append({
+            "Candidate Name": file_path.stem.replace("_", " ").title(),
+            "File Name": file_path.name,
+            "Match Score (%)": composite_score,
+            "Cosine Similarity (%)": round(cosine_score, 2),
+            "Jaccard Similarity (%)": round(jaccard_score, 2),
+            "Matched Keywords Count": len(matched_kw),
+            "Missing Keywords Count": len(missing_kw),
+            "Matched Keywords": ", ".join(matched_kw[:10]),
+            "Missing Keywords": ", ".join(missing_kw[:10])
+        })
+    results.sort(key=lambda x: x["Match Score (%)"], reverse=True)
+    return results
+def export_to_csv(results: list[dict], output_file: str = "ranked_candidates.csv"):
+    if not results:
+        print("No candidates processed.")
+        return
+    headers = list(results[0].keys())
+    with open(output_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(results)
+    print(f"\n[✓] Results saved successfully to '{output_file}'")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Offline Resume Screener (Zero External Dependencies)")
+    parser.add_argument("--jd", required=True, help="Path to Job Description (.txt) file")
+    parser.add_argument("--resumes", required=True, help="Path to directory containing resume (.txt) files")
+    parser.add_argument("--out", default="ranked_candidates.csv", help="Output CSV file path")
+    args = parser.parse_args()
+    print("--- Starting Resume & JD Analysis ---")
+    ranked_candidates = evaluate_resumes(args.jd, args.resumes)
+    print("\nCandidate Rankings:")
+    print("-" * 65)
+    print(f"{'Rank':<5} | {'Candidate Name':<25} | {'Match Score (%)':<15}")
+    print("-" * 65)
+    for rank, candidate in enumerate(ranked_candidates, start=1):
+        print(f"{rank:<5} | {candidate['Candidate Name']:<25} | {candidate['Match Score (%)']:<15}%")
+    export_to_csv(ranked_candidates, args.out)
